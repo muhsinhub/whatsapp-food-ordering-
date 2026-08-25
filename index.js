@@ -1,11 +1,12 @@
 const express = require('express');
+const path = require('path');
 const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
 // Temporary in-memory storage
 const sessions = {};
-const orders = {};
+const orders = [];
 
 // Sample restaurant menu
 const menu = {
@@ -64,7 +65,7 @@ app.post('/webhook', (req, res) => {
         reply = '❌ Your cart is empty! Reply with the menu number to add items.';
       } else {
         const orderId = Date.now();
-        orders[orderId] = { from, cart: session.cart, time: new Date() };
+        orders.push({ id: orderId, from, cart: session.cart, time: new Date() });
         reply = `🎉 *Order Confirmed!*\n\n${formatCart(session.cart)}\n\nYour order ID is *#${orderId}*\nWe'll prepare it right away! Thank you 🙏`;
         session.cart = [];
         session.stage = 'welcome';
@@ -84,6 +85,16 @@ app.post('/webhook', (req, res) => {
 
   res.type('text/xml');
   res.send(twiml);
+});
+
+// Serve dashboard
+app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
+
+// API to get orders
+app.get('/orders', (req, res) => {
+  res.json({ orders });
 });
 
 app.get('/', (req, res) => {
