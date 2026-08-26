@@ -13,7 +13,6 @@
       color: #1a1a2e;
     }
 
-    /* Header */
     .header {
       background: #ffffff;
       border-bottom: 1px solid #eee;
@@ -50,9 +49,7 @@
       color: #1a1a2e;
     }
 
-    .logo-text span {
-      color: #25D366;
-    }
+    .logo-text span { color: #25D366; }
 
     .header-right {
       display: flex;
@@ -94,18 +91,13 @@
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
       transition: background 0.2s;
     }
 
     .refresh-btn:hover { background: #2d2d4e; }
 
-    /* Main content */
     .main { padding: 24px; max-width: 1100px; margin: 0 auto; }
 
-    /* Stats */
     .stats {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -138,12 +130,6 @@
 
     .stat-value.green { color: #25D366; }
 
-    .stat-icon {
-      font-size: 22px;
-      margin-bottom: 10px;
-    }
-
-    /* Section header */
     .section-header {
       display: flex;
       justify-content: space-between;
@@ -166,7 +152,6 @@
       border-radius: 20px;
     }
 
-    /* Order cards */
     .order-card {
       background: white;
       border-radius: 14px;
@@ -181,9 +166,7 @@
       transition: box-shadow 0.2s;
     }
 
-    .order-card:hover {
-      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-    }
+    .order-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
 
     .order-left { flex: 1; }
 
@@ -191,13 +174,19 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
+    }
+
+    .customer-name {
+      font-weight: 700;
+      font-size: 16px;
+      color: #1a1a2e;
     }
 
     .order-id {
-      font-weight: 700;
-      font-size: 15px;
-      color: #1a1a2e;
+      font-size: 12px;
+      color: #aaa;
+      font-weight: 500;
     }
 
     .status-badge {
@@ -225,9 +214,6 @@
       font-size: 12px;
       color: #aaa;
       margin-top: 8px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
     }
 
     .order-right {
@@ -247,18 +233,21 @@
       margin-top: 2px;
     }
 
-    /* Empty state */
     .empty-state {
       text-align: center;
       padding: 60px 20px;
       color: #aaa;
     }
 
-    .empty-icon { font-size: 48px; margin-bottom: 12px; }
-    .empty-title { font-size: 16px; font-weight: 600; color: #555; margin-bottom: 6px; }
+    .empty-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 6px;
+    }
+
     .empty-sub { font-size: 13px; }
 
-    /* Loading */
     .loading {
       text-align: center;
       padding: 40px;
@@ -271,7 +260,7 @@
 
 <div class="header">
   <div class="logo">
-    <div class="logo-icon">🍔</div>
+    <div class="logo-icon">QB</div>
     <div class="logo-text">Quick<span>Bite</span></div>
   </div>
   <div class="header-right">
@@ -279,28 +268,19 @@
       <div class="live-dot"></div>
       Live
     </div>
-    <button class="refresh-btn" onclick="loadOrders()">
-      🔄 Refresh
-    </button>
+    <button class="refresh-btn" onclick="loadOrders()">Refresh</button>
   </div>
 </div>
 
 <div class="main">
   <div class="stats">
     <div class="stat-card">
-      <div class="stat-icon">📦</div>
       <div class="stat-label">Total Orders</div>
       <div class="stat-value" id="total-orders">—</div>
     </div>
     <div class="stat-card">
-      <div class="stat-icon">💰</div>
       <div class="stat-label">Total Revenue</div>
       <div class="stat-value green" id="total-revenue">—</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon">🛒</div>
-      <div class="stat-label">Avg Order</div>
-      <div class="stat-value" id="avg-order">—</div>
     </div>
   </div>
 
@@ -321,14 +301,11 @@
       const data = await response.json();
       const orders = data.orders;
 
-      // Stats
       const total = orders.length;
       const revenue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
-      const avg = total > 0 ? Math.round(revenue / total) : 0;
 
       document.getElementById('total-orders').textContent = total;
       document.getElementById('total-revenue').textContent = `R${revenue}`;
-      document.getElementById('avg-order').textContent = `R${avg}`;
       document.getElementById('order-count').textContent = `${total} order${total !== 1 ? 's' : ''}`;
 
       const container = document.getElementById('orders-container');
@@ -336,7 +313,6 @@
       if (orders.length === 0) {
         container.innerHTML = `
           <div class="empty-state">
-            <div class="empty-icon">📭</div>
             <div class="empty-title">No orders yet</div>
             <div class="empty-sub">Orders will appear here when customers place them on WhatsApp</div>
           </div>`;
@@ -348,18 +324,20 @@
         const total = order.total || cart.reduce((s, i) => s + (i.price * i.qty), 0);
         const time = order.time ? new Date(order.time).toLocaleString() : '';
         const phone = (order.from || '').replace('whatsapp:', '');
-        const items = cart.map(i => `${i.name} ×${i.qty} — R${i.price * i.qty}`).join('<br>');
+        const items = cart.map(i => `${i.name} x${i.qty} — R${i.price * i.qty}`).join('<br>');
+        const name = order.name || 'Unknown';
 
         return `
           <div class="order-card">
             <div class="order-left">
               <div class="order-top">
+                <div class="customer-name">${name}</div>
                 <div class="order-id">Order #${order.id}</div>
                 <div class="status-badge">New</div>
               </div>
-              <div class="order-time">⏰ ${time}</div>
+              <div class="order-time">${time}</div>
               <div class="order-items">${items}</div>
-              <div class="order-phone">📱 ${phone}</div>
+              <div class="order-phone">${phone}</div>
             </div>
             <div class="order-right">
               <div class="order-total">R${total}</div>
@@ -370,7 +348,7 @@
 
     } catch (err) {
       document.getElementById('orders-container').innerHTML =
-        '<div class="empty-state"><div class="empty-icon">❌</div><div class="empty-title">Could not load orders</div><div class="empty-sub">Try refreshing</div></div>';
+        '<div class="empty-state"><div class="empty-title">Could not load orders</div><div class="empty-sub">Try refreshing</div></div>';
     }
   }
 
