@@ -4,6 +4,20 @@ const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
+// Supabase setup
+let supabase = null;
+try {
+  const { createClient } = require('@supabase/supabase-js');
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+    supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+    console.log('Supabase connected!');
+  } else {
+    console.log('No Supabase credentials found, using memory storage');
+  }
+} catch (err) {
+  console.log('Supabase error:', err.message);
+}
+
 const sessions = {};
 const orders = [];
 
@@ -34,7 +48,7 @@ function formatCart(cart) {
   return text;
 }
 
-app.post('/webhook', (req, res) => {
+app.post('/webhook', async (req, res) => {
   const from = req.body.From;
   const message = req.body.Body?.trim().toLowerCase();
 
@@ -62,8 +76,39 @@ app.post('/webhook', (req, res) => {
       if (session.cart.length === 0) {
         reply = '❌ Your cart is empty! Reply with the menu number to add items.';
       } else {
-        const orderId = Date.now();
-        orders.push({ id: orderId, from, cart: [...session.cart], time: new Date() });
+        const total = session.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+        let orderId;
+
+        if (supabase) {
+          try {
+            const { data, error } = await supabase
+              .from('orders')
+              .insert([{
+                customer_phone: from,
+                items: JSON.stringify(session.cart),
+                total: total,
+                status: 'new'
+              }])
+              .select();
+
+            if (error) {
+              console.error('Supabase insert error:', error.message);
+              orderId = Date.now();
+              orders.push({ id: orderId, from, cart: [...session.cart], time: new Date() });
+            } else {
+              orderId = data[0].id;
+              console.log('Order saved to Supabase:', orderId);
+            }
+          } catch (err) {
+            console.error('Supabase exception:', err.message);
+            orderId = Date.now();
+            orders.push({ id: orderId, from, cart: [...session.cart], time: new Date() });
+          }
+        } else {
+          orderId = Date.now();
+          orders.push({ id: orderId, from, cart: [...session.cart], time: new Date() });
+        }
+
         reply = `🎉 *Order Confirmed!*\n\n${formatCart(session.cart)}\n\nYour order ID is *#${orderId}*\nWe'll prepare it right away! Thank you 🙏`;
         session.cart = [];
         session.stage = 'welcome';
@@ -89,7 +134,34 @@ app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
 
-app.get('/orders', (req, res) => {
+app.get('/orders', async (req, res) => {
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Supabase fetch error:', error.message);
+        return res.json({ orders });
+      }
+
+      const dbOrders = data.map(order => ({
+        id: order.id,
+        from: order.customer_phone,
+        cart: JSON.parse(order.items),
+        total: order.total,
+        status: order.status,
+        time: order.created_at
+      }));
+
+      return res.json({ orders: dbOrders });
+    } catch (err) {
+      console.error('Supabase fetch exception:', err.message);
+      return res.json({ orders });
+    }
+  }
   res.json({ orders });
 });
 
