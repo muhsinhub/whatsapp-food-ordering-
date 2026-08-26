@@ -1,16 +1,11 @@
 const express = require('express');
 const path = require('path');
-const { createClient } = require('@supabase/supabase-js');
 const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
-);
-
 const sessions = {};
+const orders = [];
 
 const menu = {
   '1': { name: 'Burger', price: 50 },
@@ -39,7 +34,7 @@ function formatCart(cart) {
   return text;
 }
 
-app.post('/webhook', async (req, res) => {
+app.post('/webhook', (req, res) => {
   const from = req.body.From;
   const message = req.body.Body?.trim().toLowerCase();
 
@@ -67,27 +62,11 @@ app.post('/webhook', async (req, res) => {
       if (session.cart.length === 0) {
         reply = '❌ Your cart is empty! Reply with the menu number to add items.';
       } else {
-        const total = session.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-
-        const { data, error } = await supabase
-          .from('orders')
-          .insert([{
-            customer_phone: from,
-            items: JSON.stringify(session.cart),
-            total: total,
-            status: 'new'
-          }])
-          .select();
-
-        if (error) {
-          console.error('Supabase error:', error);
-          reply = '❌ Something went wrong. Please try again.';
-        } else {
-          const orderId = data[0].id;
-          reply = `🎉 *Order Confirmed!*\n\n${formatCart(session.cart)}\n\nYour order ID is *#${orderId}*\nWe'll prepare it right away! Thank you 🙏`;
-          session.cart = [];
-          session.stage = 'welcome';
-        }
+        const orderId = Date.now();
+        orders.push({ id: orderId, from, cart: [...session.cart], time: new Date() });
+        reply = `🎉 *Order Confirmed!*\n\n${formatCart(session.cart)}\n\nYour order ID is *#${orderId}*\nWe'll prepare it right away! Thank you 🙏`;
+        session.cart = [];
+        session.stage = 'welcome';
       }
     } else if (message === 'clear') {
       session.cart = [];
@@ -110,25 +89,7 @@ app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
 
-app.get('/orders', async (req, res) => {
-  const { data, error } = await supabase
-    .from('orders')
-    .select('*')
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    return res.status(500).json({ error: error.message });
-  }
-
-  const orders = data.map(order => ({
-    id: order.id,
-    from: order.customer_phone,
-    cart: JSON.parse(order.items),
-    total: order.total,
-    status: order.status,
-    time: order.created_at
-  }));
-
+app.get('/orders', (req, res) => {
   res.json({ orders });
 });
 
