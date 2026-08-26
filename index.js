@@ -125,12 +125,11 @@ app.post('/webhook', async (req, res) => {
     }
 
     const orderSummary = formatCart(session.cart);
-    const confirmedCart = [...session.cart];
     const confirmedName = session.name;
     session.cart = [];
     session.stage = 'welcome';
 
-    reply = `Thank you ${confirmedName}, your order has been placed!\n\n*Order Summary*\n\nOrder ID: #${orderId}\nName: ${confirmedName}\nPhone: ${from.replace('whatsapp:', '')}\n\n${orderSummary}\n\nWe will notify you when your order is ready for collection.`;
+    reply = `Thank you ${confirmedName}, your order has been placed!\n\n*Order Summary*\n\nOrder ID: #${orderId}\n\n${orderSummary}\n\nWe will notify you when your order is ready for collection.`;
   }
 
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
