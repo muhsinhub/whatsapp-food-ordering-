@@ -72,7 +72,7 @@ app.post('/webhook', async (req, res) => {
       } else {
         session.cart.push({ ...item, qty: 1 });
       }
-      reply = `${item.name} added!\n\n*Your Order So Far*\n${formatCart(session.cart)}\n\nAdd more items or type *done* to confirm.`;
+      reply = `${item.name} added!\n\n*Your Order So Far*\n${formatCart(session.cart)}\n\nReply with a number to add another item or type *done* to confirm your order.`;
 
     } else if (messageLower === 'done') {
       if (session.cart.length === 0) {
