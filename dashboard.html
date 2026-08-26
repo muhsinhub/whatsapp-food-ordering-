@@ -40,7 +40,9 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
+      color: white;
+      font-weight: 700;
+      font-size: 14px;
     }
 
     .logo-text {
@@ -159,22 +161,28 @@
       margin-bottom: 12px;
       box-shadow: 0 1px 6px rgba(0,0,0,0.05);
       border: 1px solid #f0f0f0;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 16px;
       transition: box-shadow 0.2s;
     }
 
     .order-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
 
-    .order-left { flex: 1; }
+    .order-card.ready {
+      border-left: 4px solid #25D366;
+      opacity: 0.7;
+    }
 
     .order-top {
       display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 4px;
+    }
+
+    .order-top-left {
+      display: flex;
       align-items: center;
       gap: 10px;
-      margin-bottom: 4px;
+      flex-wrap: wrap;
     }
 
     .customer-name {
@@ -190,12 +198,20 @@
     }
 
     .status-badge {
-      background: #e8f5e9;
-      color: #25D366;
       font-size: 11px;
       font-weight: 600;
       padding: 3px 8px;
       border-radius: 20px;
+    }
+
+    .status-new {
+      background: #e8f5e9;
+      color: #25D366;
+    }
+
+    .status-ready {
+      background: #e3f2fd;
+      color: #1976d2;
     }
 
     .order-time {
@@ -204,33 +220,70 @@
       margin-bottom: 10px;
     }
 
+    .order-body {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 16px;
+    }
+
+    .order-left { flex: 1; }
+
     .order-items {
       font-size: 14px;
       color: #555;
       line-height: 1.9;
+      margin-bottom: 8px;
     }
 
     .order-phone {
       font-size: 12px;
       color: #aaa;
-      margin-top: 8px;
     }
 
     .order-right {
       text-align: right;
-      min-width: 80px;
+      min-width: 100px;
     }
 
     .order-total {
       font-size: 18px;
       font-weight: 700;
       color: #1a1a2e;
+      margin-bottom: 10px;
     }
 
     .order-total-label {
       font-size: 11px;
       color: #aaa;
-      margin-top: 2px;
+      margin-bottom: 10px;
+    }
+
+    .ready-btn {
+      background: #1a1a2e;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.2s;
+    }
+
+    .ready-btn:hover { background: #25D366; }
+
+    .ready-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .collected-label {
+      font-size: 12px;
+      color: #25D366;
+      font-weight: 600;
+      text-align: center;
     }
 
     .empty-state {
@@ -295,6 +348,34 @@
 </div>
 
 <script>
+  async function markReady(orderId, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    try {
+      const response = await fetch(`/ready/${orderId}`, { method: 'POST' });
+      const data = await response.json();
+
+      if (data.success) {
+        btn.textContent = 'Notified';
+        btn.style.background = '#25D366';
+        const card = btn.closest('.order-card');
+        card.classList.add('ready');
+        const badge = card.querySelector('.status-badge');
+        badge.textContent = 'Ready';
+        badge.className = 'status-badge status-ready';
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Ready for Collection';
+        alert('Something went wrong. Please try again.');
+      }
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Ready for Collection';
+      alert('Could not send notification. Please try again.');
+    }
+  }
+
   async function loadOrders() {
     try {
       const response = await fetch('/orders');
@@ -326,22 +407,31 @@
         const phone = (order.from || '').replace('whatsapp:', '');
         const items = cart.map(i => `${i.name} x${i.qty} — R${i.price * i.qty}`).join('<br>');
         const name = order.name || 'Unknown';
+        const isReady = order.status === 'ready';
 
         return `
-          <div class="order-card">
-            <div class="order-left">
-              <div class="order-top">
+          <div class="order-card ${isReady ? 'ready' : ''}">
+            <div class="order-top">
+              <div class="order-top-left">
                 <div class="customer-name">${name}</div>
                 <div class="order-id">Order #${order.id}</div>
-                <div class="status-badge">New</div>
+                <div class="status-badge ${isReady ? 'status-ready' : 'status-new'}">${isReady ? 'Ready' : 'New'}</div>
               </div>
-              <div class="order-time">${time}</div>
-              <div class="order-items">${items}</div>
-              <div class="order-phone">${phone}</div>
             </div>
-            <div class="order-right">
-              <div class="order-total">R${total}</div>
-              <div class="order-total-label">Total</div>
+            <div class="order-time">${time}</div>
+            <div class="order-body">
+              <div class="order-left">
+                <div class="order-items">${items}</div>
+                <div class="order-phone">${phone}</div>
+              </div>
+              <div class="order-right">
+                <div class="order-total">R${total}</div>
+                <div class="order-total-label">Total</div>
+                ${isReady
+                  ? `<div class="collected-label">Notified</div>`
+                  : `<button class="ready-btn" onclick="markReady(${order.id}, this)">Ready for Collection</button>`
+                }
+              </div>
             </div>
           </div>`;
       }).join('');
