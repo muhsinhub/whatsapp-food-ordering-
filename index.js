@@ -4,15 +4,12 @@ const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
-// Supabase setup
 let supabase = null;
 try {
   const { createClient } = require('@supabase/supabase-js');
   if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
     supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
     console.log('Supabase connected!');
-  } else {
-    console.log('No Supabase credentials found, using memory storage');
   }
 } catch (err) {
   console.log('Supabase error:', err.message);
@@ -29,7 +26,7 @@ const menu = {
 };
 
 function formatMenu() {
-  let text = '🍽️ *Our Menu*\n\n';
+  let text = '*Our Menu*\n\n';
   for (const [key, item] of Object.entries(menu)) {
     text += `${key}. ${item.name} - R${item.price}\n`;
   }
@@ -38,87 +35,102 @@ function formatMenu() {
 }
 
 function formatCart(cart) {
-  let text = '🛒 *Your Order*\n\n';
+  let text = '';
   let total = 0;
   for (const item of cart) {
     text += `- ${item.name} x${item.qty} = R${item.price * item.qty}\n`;
     total += item.price * item.qty;
   }
-  text += `\n*Total: R${total}*`;
+  text += `\nTotal: R${total}`;
   return text;
 }
 
 app.post('/webhook', async (req, res) => {
   const from = req.body.From;
-  const message = req.body.Body?.trim().toLowerCase();
+  const message = req.body.Body?.trim();
+  const messageLower = message?.toLowerCase();
 
   if (!sessions[from]) {
-    sessions[from] = { stage: 'welcome', cart: [] };
+    sessions[from] = { stage: 'welcome', cart: [], name: '' };
   }
 
   const session = sessions[from];
   let reply = '';
 
-  if (message === 'hi' || message === 'hello' || message === 'menu' || session.stage === 'welcome') {
+  if (messageLower === 'hi' || messageLower === 'hello' || messageLower === 'menu' || session.stage === 'welcome') {
     session.stage = 'ordering';
-    reply = `👋 Welcome to *QuickBite*!\n\n${formatMenu()}`;
+    session.cart = [];
+    session.name = '';
+    reply = `Welcome! Here is our menu:\n\n${formatMenu()}`;
+
   } else if (session.stage === 'ordering') {
-    if (menu[message]) {
-      const item = menu[message];
+    if (menu[messageLower]) {
+      const item = menu[messageLower];
       const existing = session.cart.find(i => i.name === item.name);
       if (existing) {
         existing.qty += 1;
       } else {
         session.cart.push({ ...item, qty: 1 });
       }
-      reply = `✅ *${item.name}* added to your order!\n\n${formatCart(session.cart)}\n\nReply with:\n- A number to add more items\n- *done* to confirm order\n- *clear* to start over`;
-    } else if (message === 'done') {
+      reply = `${item.name} added!\n\n*Your Order So Far*\n${formatCart(session.cart)}\n\nAdd more items or type *done* to confirm.`;
+
+    } else if (messageLower === 'done') {
       if (session.cart.length === 0) {
-        reply = '❌ Your cart is empty! Reply with the menu number to add items.';
+        reply = 'Your cart is empty. Please select an item from the menu first.\n\n' + formatMenu();
       } else {
-        const total = session.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-        let orderId;
-
-        if (supabase) {
-          try {
-            const { data, error } = await supabase
-              .from('orders')
-              .insert([{
-                customer_phone: from,
-                items: JSON.stringify(session.cart),
-                total: total,
-                status: 'new'
-              }])
-              .select();
-
-            if (error) {
-              console.error('Supabase insert error:', error.message);
-              orderId = Date.now();
-              orders.push({ id: orderId, from, cart: [...session.cart], time: new Date() });
-            } else {
-              orderId = data[0].id;
-              console.log('Order saved to Supabase:', orderId);
-            }
-          } catch (err) {
-            console.error('Supabase exception:', err.message);
-            orderId = Date.now();
-            orders.push({ id: orderId, from, cart: [...session.cart], time: new Date() });
-          }
-        } else {
-          orderId = Date.now();
-          orders.push({ id: orderId, from, cart: [...session.cart], time: new Date() });
-        }
-
-        reply = `🎉 *Order Confirmed!*\n\n${formatCart(session.cart)}\n\nYour order ID is *#${orderId}*\nWe'll prepare it right away! Thank you 🙏`;
-        session.cart = [];
-        session.stage = 'welcome';
+        session.stage = 'get_name';
+        reply = 'Please enter your name so we can prepare your order.';
       }
-    } else if (message === 'clear') {
+
+    } else if (messageLower === 'clear') {
       session.cart = [];
-      reply = `🗑️ Cart cleared!\n\n${formatMenu()}`;
+      reply = `Cart cleared.\n\n${formatMenu()}`;
     } else {
-      reply = `❓ I didn't understand that.\n\n${formatMenu()}`;
+      reply = `I did not understand that.\n\n${formatMenu()}`;
     }
+
+  } else if (session.stage === 'get_name') {
+    session.name = message;
+    const total = session.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    let orderId;
+
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .insert([{
+            customer_phone: from,
+            customer_name: session.name,
+            items: JSON.stringify(session.cart),
+            total: total,
+            status: 'new'
+          }])
+          .select();
+
+        if (error) {
+          console.error('Supabase insert error:', error.message);
+          orderId = Date.now();
+          orders.push({ id: orderId, from, name: session.name, cart: [...session.cart], time: new Date() });
+        } else {
+          orderId = data[0].id;
+        }
+      } catch (err) {
+        console.error('Supabase exception:', err.message);
+        orderId = Date.now();
+        orders.push({ id: orderId, from, name: session.name, cart: [...session.cart], time: new Date() });
+      }
+    } else {
+      orderId = Date.now();
+      orders.push({ id: orderId, from, name: session.name, cart: [...session.cart], time: new Date() });
+    }
+
+    const orderSummary = formatCart(session.cart);
+    const confirmedCart = [...session.cart];
+    const confirmedName = session.name;
+    session.cart = [];
+    session.stage = 'welcome';
+
+    reply = `Thank you ${confirmedName}, your order has been placed!\n\n*Order Summary*\n\nOrder ID: #${orderId}\nName: ${confirmedName}\nPhone: ${from.replace('whatsapp:', '')}\n\n${orderSummary}\n\nWe will notify you when your order is ready for collection.`;
   }
 
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -150,6 +162,7 @@ app.get('/orders', async (req, res) => {
       const dbOrders = data.map(order => ({
         id: order.id,
         from: order.customer_phone,
+        name: order.customer_name,
         cart: JSON.parse(order.items),
         total: order.total,
         status: order.status,
