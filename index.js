@@ -15,6 +15,17 @@ try {
   console.log('Supabase error:', err.message);
 }
 
+let twilioClient = null;
+try {
+  const twilio = require('twilio');
+  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+    twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+    console.log('Twilio client connected!');
+  }
+} catch (err) {
+  console.log('Twilio error:', err.message);
+}
+
 const sessions = {};
 const orders = [];
 
@@ -139,6 +150,49 @@ app.post('/webhook', async (req, res) => {
 
   res.type('text/xml');
   res.send(twiml);
+});
+
+// Mark order as ready and notify customer
+app.post('/ready/:id', async (req, res) => {
+  const orderId = req.params.id;
+  let customerPhone = null;
+  let customerName = null;
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .update({ status: 'ready' })
+        .eq('id', orderId)
+        .select();
+
+      if (error) {
+        console.error('Supabase update error:', error.message);
+        return res.status(500).json({ success: false });
+      }
+
+      customerPhone = data[0].customer_phone;
+      customerName = data[0].customer_name;
+    } catch (err) {
+      console.error('Supabase exception:', err.message);
+      return res.status(500).json({ success: false });
+    }
+  }
+
+  if (twilioClient && customerPhone) {
+    try {
+      await twilioClient.messages.create({
+        from: 'whatsapp:+14155238886',
+        to: customerPhone,
+        body: `Hi ${customerName || 'there'}! Your order #${orderId} is ready for collection. Please come collect your order. Thank you!`
+      });
+      console.log('Notification sent to', customerPhone);
+    } catch (err) {
+      console.error('Twilio send error:', err.message);
+    }
+  }
+
+  res.json({ success: true });
 });
 
 app.get('/dashboard', (req, res) => {
