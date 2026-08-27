@@ -16,31 +16,9 @@ try {
   console.log('Supabase error:', err.message);
 }
 
-async function sendWhatsApp(to, body) {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const from = 'whatsapp:+14155238886';
-
-  const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-
-  const params = new URLSearchParams();
-  params.append('From', from);
-  params.append('To', to);
-  params.append('Body', body);
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: params
-  });
-
-  const data = await response.json();
-  console.log('Twilio response:', data.sid || data.message || JSON.stringify(data));
-  return data;
-}
+const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || 'quickbite123';
+const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
+const PHONE_NUMBER_ID = process.env.META_PHONE_NUMBER_ID;
 
 const sessions = {};
 const orders = [];
@@ -72,10 +50,62 @@ function formatCart(cart) {
   return text;
 }
 
+async function sendMessage(to, body) {
+  const url = `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`;
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${ACCESS_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: to,
+      type: 'text',
+      text: { body: body }
+    })
+  });
+
+  const data = await response.json();
+  console.log('Meta response:', JSON.stringify(data));
+  return data;
+}
+
+// Webhook verification
+app.get('/webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+    console.log('Webhook verified!');
+    res.status(200).send(challenge);
+  } else {
+    res.sendStatus(403);
+  }
+});
+
+// Webhook handler
 app.post('/webhook', async (req, res) => {
-  const from = req.body.From;
-  const message = req.body.Body?.trim();
-  const messageLower = message?.toLowerCase();
+  res.sendStatus(200);
+
+  const body = req.body;
+  if (body.object !== 'whatsapp_business_account') return;
+
+  const entry = body.entry?.[0];
+  const changes = entry?.changes?.[0];
+  const value = changes?.value;
+  const messages = value?.messages;
+
+  if (!messages || messages.length === 0) return;
+
+  const message = messages[0];
+  const from = message.from;
+  const text = message.text?.body?.trim();
+  const textLower = text?.toLowerCase();
+
+  if (!text) return;
 
   if (!sessions[from]) {
     sessions[from] = { stage: 'welcome', cart: [], name: '' };
@@ -84,15 +114,15 @@ app.post('/webhook', async (req, res) => {
   const session = sessions[from];
   let reply = '';
 
-  if (messageLower === 'hi' || messageLower === 'hello' || messageLower === 'menu' || session.stage === 'welcome') {
+  if (textLower === 'hi' || textLower === 'hello' || textLower === 'menu' || session.stage === 'welcome') {
     session.stage = 'ordering';
     session.cart = [];
     session.name = '';
     reply = `Welcome! Here is our menu:\n\n${formatMenu()}`;
 
   } else if (session.stage === 'ordering') {
-    if (menu[messageLower]) {
-      const item = menu[messageLower];
+    if (menu[textLower]) {
+      const item = menu[textLower];
       const existing = session.cart.find(i => i.name === item.name);
       if (existing) {
         existing.qty += 1;
@@ -101,7 +131,7 @@ app.post('/webhook', async (req, res) => {
       }
       reply = `${item.name} added!\n\n*Your Order So Far*\n${formatCart(session.cart)}\n\nReply with a number to add another item or type *done* to confirm your order.`;
 
-    } else if (messageLower === 'done') {
+    } else if (textLower === 'done') {
       if (session.cart.length === 0) {
         reply = 'Your cart is empty. Please select an item from the menu first.\n\n' + formatMenu();
       } else {
@@ -109,7 +139,7 @@ app.post('/webhook', async (req, res) => {
         reply = 'Please enter your name so we can prepare your order.';
       }
 
-    } else if (messageLower === 'clear') {
+    } else if (textLower === 'clear') {
       session.cart = [];
       reply = `Cart cleared.\n\n${formatMenu()}`;
     } else {
@@ -117,7 +147,7 @@ app.post('/webhook', async (req, res) => {
     }
 
   } else if (session.stage === 'get_name') {
-    session.name = message;
+    session.name = text;
     const total = session.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
     let orderId;
 
@@ -159,13 +189,9 @@ app.post('/webhook', async (req, res) => {
     reply = `Thank you ${confirmedName}, your order has been placed!\n\n*Order Summary*\n\nOrder ID: #${orderId}\n\n${orderSummary}\n\nWe will notify you when your order is ready for collection.`;
   }
 
-  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${reply}</Message>
-</Response>`;
-
-  res.type('text/xml');
-  res.send(twiml);
+  if (reply) {
+    await sendMessage(from, reply);
+  }
 });
 
 app.post('/ready/:id', async (req, res) => {
@@ -196,12 +222,12 @@ app.post('/ready/:id', async (req, res) => {
 
   if (customerPhone) {
     try {
-      await sendWhatsApp(
+      await sendMessage(
         customerPhone,
         `Hi ${customerName || 'there'}! Your order #${orderId} is ready for collection. Please come collect your order. Thank you!`
       );
     } catch (err) {
-      console.error('WhatsApp send error:', err.message);
+      console.error('Send error:', err.message);
     }
   }
 
