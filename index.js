@@ -15,15 +15,30 @@ try {
   console.log('Supabase error:', err.message);
 }
 
-let twilioClient = null;
-try {
-  const twilio = require('twilio');
-  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-    twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-    console.log('Twilio client connected!');
-  }
-} catch (err) {
-  console.log('Twilio error:', err.message);
+async function sendWhatsApp(to, body) {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const from = 'whatsapp:+14155238886';
+
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+
+  const params = new URLSearchParams();
+  params.append('From', from);
+  params.append('To', to);
+  params.append('Body', body);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: params
+  });
+
+  const data = await response.json();
+  console.log('Twilio response:', data.sid || data.message || JSON.stringify(data));
+  return data;
 }
 
 const sessions = {};
@@ -152,7 +167,6 @@ app.post('/webhook', async (req, res) => {
   res.send(twiml);
 });
 
-// Mark order as ready and notify customer
 app.post('/ready/:id', async (req, res) => {
   const orderId = req.params.id;
   let customerPhone = null;
@@ -179,16 +193,14 @@ app.post('/ready/:id', async (req, res) => {
     }
   }
 
-  if (twilioClient && customerPhone) {
+  if (customerPhone) {
     try {
-      await twilioClient.messages.create({
-        from: 'whatsapp:+14155238886',
-        to: customerPhone,
-        body: `Hi ${customerName || 'there'}! Your order #${orderId} is ready for collection. Please come collect your order. Thank you!`
-      });
-      console.log('Notification sent to', customerPhone);
+      await sendWhatsApp(
+        customerPhone,
+        `Hi ${customerName || 'there'}! Your order #${orderId} is ready for collection. Please come collect your order. Thank you!`
+      );
     } catch (err) {
-      console.error('Twilio send error:', err.message);
+      console.error('WhatsApp send error:', err.message);
     }
   }
 
