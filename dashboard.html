@@ -166,10 +166,7 @@
 
     .order-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
 
-    .order-card.ready {
-      border-left: 4px solid #25D366;
-      opacity: 0.7;
-    }
+    .order-card.ready { border-left: 4px solid #25D366; opacity: 0.7; }
 
     .order-top {
       display: flex;
@@ -204,15 +201,8 @@
       border-radius: 20px;
     }
 
-    .status-new {
-      background: #e8f5e9;
-      color: #25D366;
-    }
-
-    .status-ready {
-      background: #e3f2fd;
-      color: #1976d2;
-    }
+    .status-new { background: #e8f5e9; color: #25D366; }
+    .status-ready { background: #e3f2fd; color: #1976d2; }
 
     .order-time {
       font-size: 12px;
@@ -236,10 +226,7 @@
       margin-bottom: 8px;
     }
 
-    .order-phone {
-      font-size: 12px;
-      color: #aaa;
-    }
+    .order-phone { font-size: 12px; color: #aaa; }
 
     .order-right {
       text-align: right;
@@ -250,7 +237,7 @@
       font-size: 18px;
       font-weight: 700;
       color: #1a1a2e;
-      margin-bottom: 10px;
+      margin-bottom: 4px;
     }
 
     .order-total-label {
@@ -273,11 +260,7 @@
     }
 
     .ready-btn:hover { background: #25D366; }
-
-    .ready-btn:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
+    .ready-btn:disabled { background: #ccc; cursor: not-allowed; }
 
     .collected-label {
       font-size: 12px;
@@ -300,13 +283,7 @@
     }
 
     .empty-sub { font-size: 13px; }
-
-    .loading {
-      text-align: center;
-      padding: 40px;
-      color: #aaa;
-      font-size: 14px;
-    }
+    .loading { text-align: center; padding: 40px; color: #aaa; font-size: 14px; }
   </style>
 </head>
 <body>
@@ -353,7 +330,7 @@
     btn.textContent = 'Sending...';
 
     try {
-      const response = await fetch(`/ready/${orderId}`, { method: 'POST' });
+      const response = await fetch(`/api/ready?id=${orderId}`, { method: 'POST' });
       const data = await response.json();
 
       if (data.success) {
@@ -378,7 +355,7 @@
 
   async function loadOrders() {
     try {
-      const response = await fetch('/orders');
+      const response = await fetch('/api/orders');
       const data = await response.json();
       const orders = data.orders;
 
