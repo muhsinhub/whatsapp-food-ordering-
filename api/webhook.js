@@ -78,7 +78,7 @@ async function saveSession(session) {
     });
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method === 'GET') {
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
@@ -88,11 +88,11 @@ export default async function handler(req, res) {
       console.log('Webhook verified!');
       return res.status(200).send(challenge);
     }
-    return res.sendStatus(403);
+    return res.status(403).end();
   }
 
   if (req.method === 'POST') {
-    res.sendStatus(200);
+    res.status(200).end();
 
     const body = req.body;
     if (body.object !== 'whatsapp_business_account') return;
