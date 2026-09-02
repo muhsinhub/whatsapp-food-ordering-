@@ -2,9 +2,6 @@
   "name": "whatsapp-food-ordering",
   "version": "1.0.2",
   "description": "WhatsApp Food Ordering Platform",
-  "scripts": {
-    "build": "npm install"
-  },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
     "node-fetch": "^2.7.0"
