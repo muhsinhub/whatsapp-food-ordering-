@@ -65,14 +65,19 @@ async function getSession(phone) {
     .order('updated_at', { ascending: false })
     .limit(1);
   if (error) console.error('getSession error:', error.message);
-  return (data && data[0]) || { phone, stage: 'welcome', cart: [], name: '' };
+  const session = (data && data[0]) || { phone, stage: 'welcome', cart: [], name: '' };
+  if (typeof session.cart === 'string') {
+    try { session.cart = JSON.parse(session.cart); } catch (e) { session.cart = []; }
+  }
+  if (!Array.isArray(session.cart)) session.cart = [];
+  return session;
 }
 
 async function saveSession(session) {
   const payload = {
     phone: session.phone,
     stage: session.stage,
-    cart: session.cart,
+    cart: JSON.stringify(session.cart || []),
     name: session.name,
     updated_at: new Date()
   };
