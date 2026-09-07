@@ -58,24 +58,36 @@ async function sendMessage(to, body) {
 }
 
 async function getSession(phone) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('sessions')
     .select('*')
     .eq('phone', phone)
-    .single();
-  return data || { phone, stage: 'welcome', cart: [], name: '' };
+    .order('updated_at', { ascending: false })
+    .limit(1);
+  if (error) console.error('getSession error:', error.message);
+  return (data && data[0]) || { phone, stage: 'welcome', cart: [], name: '' };
 }
 
 async function saveSession(session) {
-  await supabase
+  const payload = {
+    phone: session.phone,
+    stage: session.stage,
+    cart: session.cart,
+    name: session.name,
+    updated_at: new Date()
+  };
+  const { data: updated, error: updateError } = await supabase
     .from('sessions')
-    .upsert({
-      phone: session.phone,
-      stage: session.stage,
-      cart: session.cart,
-      name: session.name,
-      updated_at: new Date()
-    });
+    .update(payload)
+    .eq('phone', session.phone)
+    .select();
+  if (updateError) console.error('saveSession update error:', updateError.message);
+  if (!updated || updated.length === 0) {
+    const { error: insertError } = await supabase
+      .from('sessions')
+      .insert(payload);
+    if (insertError) console.error('saveSession insert error:', insertError.message);
+  }
 }
 
 module.exports = async function handler(req, res) {
@@ -110,6 +122,7 @@ module.exports = async function handler(req, res) {
     if (!text) return res.status(200).end();
 
     const session = await getSession(from);
+    console.log('Session loaded — stage:', session.stage, '| text:', textLower);
     let reply = '';
 
     if (textLower === 'hi' || textLower === 'hello' || textLower === 'menu' || session.stage === 'welcome') {
