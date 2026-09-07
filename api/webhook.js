@@ -92,24 +92,22 @@ module.exports = async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    res.status(200).end();
-
     const body = req.body;
-    if (body.object !== 'whatsapp_business_account') return;
+    if (body.object !== 'whatsapp_business_account') return res.status(200).end();
 
     const entry = body.entry?.[0];
     const changes = entry?.changes?.[0];
     const value = changes?.value;
     const messages = value?.messages;
 
-    if (!messages || messages.length === 0) return;
+    if (!messages || messages.length === 0) return res.status(200).end();
 
     const message = messages[0];
     const from = message.from;
     const text = message.text?.body?.trim();
     const textLower = text?.toLowerCase();
 
-    if (!text) return;
+    if (!text) return res.status(200).end();
 
     const session = await getSession(from);
     let reply = '';
@@ -187,5 +185,7 @@ module.exports = async function handler(req, res) {
     if (reply) {
       await sendMessage(from, reply);
     }
+
+    return res.status(200).end();
   }
 }
