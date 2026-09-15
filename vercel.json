@@ -1,7 +1,8 @@
 {
   "framework": null,
   "rewrites": [
-    { "source": "/webhook", "destination": "/api/webhook" }
+    { "source": "/webhook", "destination": "/api/webhook" },
+    { "source": "/dashboard", "destination": "/dashboard.html" }
   ],
   "crons": [
     { "path": "/api/keepalive", "schedule": "0 6 * * *" }
